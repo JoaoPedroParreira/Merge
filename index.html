@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Merge Documents</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    </script>
+    <!-- pdf-lib for True PDF Merging -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <!-- Mammoth.js for DOCX -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+
+    <!-- jsPDF & html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- docx.js -->
+    <script src="https://unpkg.com/docx@7.1.0/build/index.js"></script>
+    <!-- jsdiff -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
+    <!-- SheetJS (xlsx) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <!-- JSZip -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Merge</h1>
+            <p class="subtitle">Multi-Tool: Merge, Compare, Convert, Edit, Compress</p>
+
+            <div class="mode-switch-container">
+                <button id="mode-merge" class="mode-btn active" data-mode="merge">Merge</button>
+                <button id="mode-compare" class="mode-btn" data-mode="compare">Compare</button>
+                <button id="mode-convert" class="mode-btn" data-mode="convert">Convert</button>
+                <button id="mode-edit" class="mode-btn" data-mode="edit">Edit</button>
+                <button id="mode-compress" class="mode-btn" data-mode="compress">Compress</button>
+            </div>
+        </header>
+
+        <main>
+            <div id="drop-zone" class="drop-zone">
+                <span class="icon">📄</span>
+                <p>Drag & Drop files here</p>
+                <p class="small">Supported: .md, .txt, .pdf, .docx, .json, .xlsx</p>
+                <input type="file" id="file-input" multiple
+                    accept=".md,.txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.json,application/json,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            </div>
+
+            <div id="file-list-container" class="hidden">
+                <div class="list-header">
+                    <h3 id="files-list-title">Files to Merge</h3>
+                    <button id="clear-btn" class="text-btn">Clear All</button>
+                </div>
+                <ul id="file-list"></ul>
+            </div>
+
+            <div class="controls hidden" id="controls-container">
+                <div class="filename-input-group" id="merge-options">
+                    <label for="filename-input">Output Filename:</label>
+                    <div class="input-wrapper">
+                        <input type="text" id="filename-input" value="merged_files" placeholder="filename">
+                        <select id="extension-select">
+                            <option value=".md">.md</option>
+                            <option value=".txt">.txt</option>
+                            <option value=".pdf">.pdf</option>
+                            <option value=".docx">.docx</option>
+                            <option value=".json">.json</option>
+                            <option value=".xlsx">.xlsx</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button id="action-btn" class="primary-btn">Merge Files</button>
+                </div>
+            </div>
+
+            <div id="result-container" class="hidden">
+                <div class="result-header">
+                    <div class="stats">
+                        <span id="word-count">0 words</span> • <span id="char-count">0 chars</span>
+                    </div>
+                    <div class="result-actions">
+                        <button id="copy-btn" class="secondary-btn">Copy</button>
+                        <button id="download-btn" class="secondary-btn">Download</button>
+                    </div>
+                </div>
+                <div id="output-area">
+                    <textarea id="output-text" readonly></textarea>
+                    <div id="diff-output" class="hidden diff-view"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
