@@ -8,6 +8,7 @@
     <title>Merge — Your document workspace</title>
     <meta name="description" content="Merge, compare, convert and edit documents in your browser. No sign-up or file uploads.">
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <script src="theme.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,7 +16,10 @@
 <header class="topbar">
 <a class="brand" href="./">
 <span class="brand-mark">m</span>merge.</a>
+<div class="topbar-actions">
 <span class="local-badge">● Files stay on your device</span>
+<button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch to dark mode" aria-pressed="false"><span id="theme-icon" aria-hidden="true">◐</span><span id="theme-label">Dark mode</span></button>
+</div>
 </header>
 <main>
 <section class="hero">

@@ -34,6 +34,8 @@ Tests cover the application DOM, real PDF/DOCX/XLSX/ZIP generation and reading, 
 
 ## Security controls
 
+The header theme toggle stores only `light` or `dark` under `merge.theme` in the visitor's browser `localStorage`. It never sends that preference to the server. Without a saved choice, the theme follows the operating system. If browser storage is blocked, the toggle works for the current page only.
+
 Dependencies are pinned with a lockfile and bundled locally. There are no runtime CDN scripts or third-party font requests. PDF.js evaluation is disabled. Uploaded names and document contents are rendered as text, not HTML. DOCX extraction rejects XML entities and reads the document body only. Excel exports remove executable formulas and macros.
 
 The site applies a restrictive Content Security Policy, no-referrer policy, MIME sniffing protection, framing restrictions, and permission restrictions. `_headers` is included in the deployment output; the local server also applies the headers directly.
