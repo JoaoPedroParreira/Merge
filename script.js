@@ -1,512 +1,184 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const dropZone = document.getElementById('drop-zone');
-    const fileInput = document.getElementById('file-input');
-    const fileListContainer = document.getElementById('file-list-container');
-    const controlsContainer = document.getElementById('controls-container');
-    const fileList = document.getElementById('file-list');
-    const actionBtn = document.getElementById('action-btn');
-    const clearBtn = document.getElementById('clear-btn');
-    const resultContainer = document.getElementById('result-container');
-    const outputText = document.getElementById('output-text');
-    const diffOutput = document.getElementById('diff-output');
-    const copyBtn = document.getElementById('copy-btn');
-    const downloadBtn = document.getElementById('download-btn');
-    const filenameInput = document.getElementById('filename-input');
-    const extensionSelect = document.getElementById('extension-select');
-    const wordCountSpan = document.getElementById('word-count');
-    const charCountSpan = document.getElementById('char-count');
+import { diffLines } from 'diff';
+import { LIMITS, extension, validateFiles, boundedText, safeFilename, readDocument, mergePdfs, zipFiles, exportDocx, exportPdf, exportSpreadsheet, exportJson } from './document-tools.js';
 
-    // Mode Switcher Elements
-    const modeBtns = document.querySelectorAll('.mode-btn');
-    const filesListTitle = document.getElementById('files-list-title');
-    const mergeOptions = document.getElementById('merge-options');
-
-    let files = [];
-    let currentMode = 'merge'; // merge, compare, convert, edit, compress
-
-    // Mode Switching Logic
-    modeBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const newMode = btn.getAttribute('data-mode');
-            if (newMode) setMode(newMode);
-        });
-    });
-
-    function setMode(mode) {
-        currentMode = mode;
-        resultContainer.classList.add('hidden');
-        outputText.value = '';
-        if (diffOutput) diffOutput.innerHTML = '';
-
-        // Update Buttons
-        modeBtns.forEach(btn => {
-            if (btn.getAttribute('data-mode') === mode) btn.classList.add('active');
-            else btn.classList.remove('active');
-        });
-
-        // Update UI Text & Visibility
-        outputText.classList.remove('hidden');
-        if (diffOutput) diffOutput.classList.add('hidden');
-        mergeOptions.classList.remove('hidden');
-        outputText.readOnly = true;
-
-        if (mode === 'merge') {
-            actionBtn.textContent = 'Merge Files';
-            filesListTitle.textContent = 'Files to Merge';
-        } else if (mode === 'compare') {
-            actionBtn.textContent = 'Compare Files';
-            filesListTitle.textContent = 'Files to Compare (Select 2)';
-            mergeOptions.classList.add('hidden');
-            outputText.classList.add('hidden');
-            if (diffOutput) diffOutput.classList.remove('hidden');
-        } else if (mode === 'convert') {
-            actionBtn.textContent = 'Convert File';
-            filesListTitle.textContent = 'File to Convert (Select 1)';
-        } else if (mode === 'edit') {
-            actionBtn.textContent = 'Load for Editing';
-            filesListTitle.textContent = 'File to Edit (Select 1)';
-            mergeOptions.classList.add('hidden');
-            outputText.readOnly = false;
-        } else if (mode === 'compress') {
-            actionBtn.textContent = 'Compress Files';
-            filesListTitle.textContent = 'Files to Compress';
-            mergeOptions.classList.add('hidden');
-        }
-
-        updateUI();
-    }
-
-    // Drag and Drop Events
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('drag-over');
-    });
-
-    dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('drag-over');
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('drag-over');
-        handleFiles(e.dataTransfer.files);
-    });
-
-    // File Input Change
-    fileInput.addEventListener('change', (e) => {
-        handleFiles(e.target.files);
-        fileInput.value = '';
-    });
-
-    function handleFiles(fileListItems) {
-        let newFiles = Array.from(fileListItems).filter(file => {
-            const ext = file.name.toLowerCase().split('.').pop();
-            return ['txt', 'md', 'pdf', 'docx', 'json', 'xlsx', 'xls'].includes(ext);
-        });
-
-        if (newFiles.length === 0 && fileListItems.length > 0) {
-            alert('Supported formats: .txt, .md, .pdf, .docx, .json, .xlsx');
-            return;
-        }
-
-        // For Convert/Edit, usually 1 file. If multiple dropped, valid but maybe confusing. 
-        // We'll accept all but UI validation handles enabling button.
-
-        files = [...files, ...newFiles];
-
-        // Auto-detect output extension
-        if (currentMode === 'merge' || currentMode === 'convert') {
-            detectOutputExtension();
-        }
-
-        updateUI();
-    }
-
-    function detectOutputExtension() {
-        if (files.length === 0) return;
-        const firstExt = files[0].name.toLowerCase().split('.').pop();
-        const allSame = files.every(f => f.name.toLowerCase().split('.').pop() === firstExt);
-
-        if (allSame) {
-            let targetVal = '.' + firstExt;
-            // Handle xlsx/json
-            if (firstExt === 'xlsx' || firstExt === 'xls') targetVal = '.xlsx';
-
-            const options = Array.from(extensionSelect.options).map(opt => opt.value);
-            if (options.includes(targetVal)) {
-                extensionSelect.value = targetVal;
-            }
-        }
-    }
-
-    window.removeFile = (index) => {
-        files.splice(index, 1);
-        detectOutputExtension();
-        updateUI();
+export function initApp(document, { readPdf, loadFont, save = saveDownload, clipboard = globalThis.navigator?.clipboard } = {}) {
+    const el = id => document.getElementById(id);
+    const modeButtons = [...document.querySelectorAll('.mode-btn')];
+    let files = [], mode = 'merge', busy = false, result = null;
+    const tools = {
+        merge: ['Make many files one.', 'Arrange your documents in the order you want to merge them.', 'Merge files', 'Files to merge'],
+        compare: ['See what changed.', 'Choose two documents to compare their text, line by line.', 'Compare files', 'Files to compare'],
+        convert: ['A fresh format.', 'Choose one file and an output format. Text conversions remove styling.', 'Convert file', 'File to convert'],
+        edit: ['Make it your own.', 'Edit extracted text and choose a format to save your changes.', 'Load for editing', 'File to edit'],
+        compress: ['Everything in one ZIP.', 'Bundle your original files into a downloadable ZIP archive.', 'Create ZIP', 'Files to archive']
     };
-
-    window.moveUp = (index) => {
-        if (index > 0) {
-            [files[index - 1], files[index]] = [files[index], files[index - 1]];
-            updateUI();
+    function notify(message, error = false) {
+        el('status-message').textContent = message;
+        el('status-message').classList.remove('hidden');
+        el('status-message').classList.toggle('error', error);
+    }
+    function invalidate() { result = null; el('result-container').classList.add('hidden'); }
+    function setMode(next) {
+        if (busy || !tools[next]) return;
+        mode = next; invalidate();
+        el('output-text').value = ''; el('diff-output').replaceChildren();
+        el('tool-title').textContent = tools[mode][0]; el('tool-description').textContent = tools[mode][1];
+        el('status-message').classList.add('hidden');
+        el('file-input').multiple = !['convert', 'edit'].includes(mode);
+        el('merge-options').classList.toggle('hidden', ['compare', 'compress'].includes(mode));
+        el('output-text').classList.toggle('hidden', mode === 'compare');
+        el('diff-output').classList.toggle('hidden', mode !== 'compare');
+        el('output-text').readOnly = mode !== 'edit';
+        if (mode === 'compare') el('extension-select').value = '.txt';
+        update();
+    }
+    function update() {
+        el('file-list-container').classList.toggle('hidden', files.length === 0);
+        el('controls-container').classList.toggle('hidden', files.length === 0);
+        el('files-list-title').textContent = `${tools[mode][3]} (${files.length})`;
+        const required = mode === 'compare' ? 2 : ['convert', 'edit'].includes(mode) ? 1 : null;
+        const valid = files.length > 0 && (!required || files.length === required);
+        el('action-btn').disabled = busy || !valid;
+        el('action-btn').textContent = busy ? 'Processing…' : required && files.length !== required ? `Choose exactly ${required} file${required === 1 ? '' : 's'}` : tools[mode][2];
+        for (const button of modeButtons) {
+            button.disabled = busy;
+            button.classList.toggle('active', button.dataset.mode === mode);
+            button.setAttribute('aria-pressed', String(button.dataset.mode === mode));
         }
-    };
-
-    window.moveDown = (index) => {
-        if (index < files.length - 1) {
-            [files[index + 1], files[index]] = [files[index], files[index + 1]];
-            updateUI();
-        }
-    };
-
-    function updateUI() {
-        if (files.length > 0) {
-            fileListContainer.classList.remove('hidden');
-            controlsContainer.classList.remove('hidden');
-
-            let isValid = true;
-            let msg = '';
-
-            if (currentMode === 'compare') {
-                if (files.length !== 2) {
-                    isValid = false;
-                    msg = `Select exactly 2 files (${files.length})`;
-                } else {
-                    msg = 'Compare Files';
-                }
-            } else if (currentMode === 'convert' || currentMode === 'edit') {
-                if (files.length !== 1) {
-                    isValid = false;
-                    msg = `Select exactly 1 file (${files.length})`;
-                } else {
-                    msg = currentMode === 'convert' ? 'Convert File' : 'Load for Editing';
-                }
-            } else if (currentMode === 'merge') {
-                msg = 'Merge Files';
-            } else if (currentMode === 'compress') {
-                msg = 'Compress Files';
-            }
-
-            actionBtn.disabled = !isValid;
-            actionBtn.textContent = msg;
-
-        } else {
-            fileListContainer.classList.add('hidden');
-            controlsContainer.classList.add('hidden');
-            actionBtn.disabled = true;
-            resultContainer.classList.add('hidden');
-        }
-
-        fileList.innerHTML = '';
+        for (const id of ['file-input', 'clear-btn', 'extension-select', 'filename-input', 'download-btn', 'output-text']) el(id).disabled = busy;
+        el('copy-btn').disabled = busy || !result || result.kind === 'pdf';
+        el('file-list').replaceChildren();
         files.forEach((file, index) => {
-            const li = document.createElement('li');
-            li.className = 'file-item';
-            const isFirst = index === 0;
-            const isLast = index === files.length - 1;
-
-            li.innerHTML = `
-                <div class="file-info">
-                    <span class="file-icon">📄</span>
-                    <span class="file-name" title="${file.name}">${file.name}</span>
-                </div>
-                <div class="file-actions">
-                    <button class="icon-btn" onclick="moveUp(${index})" ${isFirst ? 'disabled' : ''} aria-label="Move up">↑</button>
-                    <button class="icon-btn" onclick="moveDown(${index})" ${isLast ? 'disabled' : ''} aria-label="Move down">↓</button>
-                    <button class="icon-btn remove-btn" onclick="removeFile(${index})" aria-label="Remove file">×</button>
-                </div>
-            `;
-            fileList.appendChild(li);
+            const li = document.createElement('li'); li.className = 'file-item';
+            const info = document.createElement('div'); info.className = 'file-info';
+            const icon = document.createElement('span'); icon.className = 'file-icon'; icon.textContent = extension(file).toUpperCase();
+            const name = document.createElement('span'); name.className = 'file-name'; name.textContent = file.name; name.title = file.name;
+            const size = document.createElement('span'); size.className = 'file-size'; size.textContent = file.size < 1024 ** 2 ? `${Math.max(1, Math.round(file.size / 1024))} KB` : `${(file.size / 1024 ** 2).toFixed(1)} MB`;
+            info.append(icon, name, size);
+            const actions = document.createElement('div'); actions.className = 'file-actions';
+            for (const [label, symbol, unavailable, action] of [
+                ['Move up', '↑', index === 0, () => { [files[index - 1], files[index]] = [files[index], files[index - 1]]; }],
+                ['Move down', '↓', index === files.length - 1, () => { [files[index + 1], files[index]] = [files[index], files[index + 1]]; }],
+                ['Remove file', '×', false, () => files.splice(index, 1)]
+            ]) {
+                const button = document.createElement('button'); button.type = 'button'; button.className = 'icon-btn';
+                button.textContent = symbol; button.setAttribute('aria-label', `${label}: ${file.name}`); button.disabled = busy || unavailable;
+                button.addEventListener('click', () => { if (busy || unavailable) return; action(); invalidate(); update(); });
+                actions.append(button);
+            }
+            li.append(info, actions); el('file-list').append(li);
         });
     }
-
-    clearBtn.addEventListener('click', () => {
-        files = [];
-        detectOutputExtension();
-        updateUI();
-    });
-
-    actionBtn.addEventListener('click', async () => {
-        if (files.length === 0) return;
-        if (actionBtn.disabled) return;
-
-        actionBtn.disabled = true;
-        const originalText = actionBtn.textContent;
-        actionBtn.textContent = 'Processing...';
-
+    function addFiles(incoming) {
+        if (busy) return;
         try {
-            if (currentMode === 'compress') {
-                await handleCompress(files);
-                return;
+            const added = Array.from(incoming);
+            if (!added.length) return;
+            validateFiles([...files, ...added]);
+            files = [...files, ...added]; invalidate();
+            el('status-message').classList.add('hidden');
+            if (['merge', 'convert', 'edit'].includes(mode) && files.every(file => extension(file) === extension(files[0]))) {
+                el('extension-select').value = extension(files[0]) === 'xls' ? '.xlsx' : `.${extension(files[0])}`;
             }
-
-            const contents = await Promise.all(files.map(readFileContent));
-
-            if (currentMode === 'merge') {
-                const mergedContent = contents.join('\n\n---\n\n');
-                outputText.value = mergedContent;
-                updateStats(mergedContent);
-            } else if (currentMode === 'compare') {
-                if (contents.length >= 2) {
-                    const diff = Diff.diffLines(contents[0], contents[1]);
-                    displayDiff(diff);
-                    updateStats(contents.join(''));
-                }
-            } else if (currentMode === 'convert' || currentMode === 'edit') {
-                outputText.value = contents[0];
-                updateStats(contents[0]);
-                if (currentMode === 'edit') setTimeout(() => outputText.focus(), 100);
+            update();
+        } catch (error) { notify(error.message, true); }
+    }
+    async function run() {
+        if (busy || el('action-btn').disabled) return;
+        busy = true; invalidate(); update();
+        try {
+            validateFiles(files);
+            if (mode === 'compress') {
+                await save(new Blob([await zipFiles(files)], { type: 'application/zip' }), 'documents.zip');
+                notify('Your ZIP archive is ready.'); return;
             }
-
-            resultContainer.classList.remove('hidden');
-            resultContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-        } catch (error) {
-            console.error(error);
-            alert('Error processing files: ' + error.message);
-        } finally {
-            if (currentMode !== 'compress') {
-                actionBtn.textContent = originalText;
-                actionBtn.disabled = false;
-                updateUI();
+            if (mode === 'merge' && el('extension-select').value === '.pdf' && files.every(file => extension(file) === 'pdf')) {
+                const merged = await mergePdfs(files);
+                result = { kind: 'pdf', bytes: merged.bytes };
+                el('output-text').value = `${files.length} PDFs merged into ${merged.pages} pages.\nOriginal page layouts are preserved. Download your PDF below.`;
+                el('word-count').textContent = `${merged.pages} pages`; el('char-count').textContent = `${files.length} files`;
             } else {
-                setTimeout(() => {
-                    actionBtn.textContent = originalText;
-                    actionBtn.disabled = false;
-                }, 1000);
-            }
-        }
-    });
-
-    async function handleCompress(filesToCompress) {
-        const zip = new JSZip();
-        for (const file of filesToCompress) {
-            const data = await file.arrayBuffer();
-            zip.file(file.name, data);
-        }
-        const content = await zip.generateAsync({ type: "blob" });
-        const url = URL.createObjectURL(content);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = "compressed_files.zip";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-
-    function displayDiff(diff) {
-        if (!diffOutput) return;
-        diffOutput.innerHTML = '';
-        const fragment = document.createDocumentFragment();
-        diff.forEach((part) => {
-            const span = document.createElement('span');
-            if (part.added) span.className = 'diff-added';
-            else if (part.removed) span.className = 'diff-removed';
-            else span.className = 'diff-common';
-            span.textContent = part.value;
-            fragment.appendChild(span);
-        });
-        diffOutput.appendChild(fragment);
-    }
-
-    async function readFileContent(file) {
-        const ext = file.name.toLowerCase().split('.').pop();
-        if (ext === 'pdf') return readPdf(file);
-        if (ext === 'docx') return readDocx(file);
-        if (ext === 'json') return readJson(file);
-        if (['xlsx', 'xls'].includes(ext)) return readXlsx(file);
-        return readText(file);
-    }
-
-    function readText(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.onerror = (e) => reject(e);
-            reader.readAsText(file);
-        });
-    }
-
-    function readJson(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const json = JSON.parse(e.target.result);
-                    resolve(JSON.stringify(json, null, 2));
-                } catch (err) {
-                    reject(new Error("Invalid JSON"));
+                const sources = [];
+                let total = 0;
+                for (const file of files) {
+                    const text = await readDocument(file, { readPdf, Parser: document.defaultView.DOMParser });
+                    total += text.length;
+                    if (total > LIMITS.chars) throw new Error('The combined extracted text exceeds 2 million characters.');
+                    sources.push({ name: file.name, text });
                 }
-            };
-            reader.onerror = (e) => reject(e);
-            reader.readAsText(file);
-        });
-    }
-
-    function readXlsx(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
-                    const csv = XLSX.utils.sheet_to_csv(worksheet);
-                    resolve(csv);
-                } catch (err) {
-                    reject(err);
-                }
-            };
-            reader.onerror = (e) => reject(e);
-            reader.readAsArrayBuffer(file);
-        });
-    }
-
-    async function readPdf(file) {
-        try {
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            let text = '';
-            for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const content = await page.getTextContent();
-                const strings = content.items.map(item => item.str);
-                text += strings.join(' ') + '\n';
+                const text = mode === 'merge' ? sources.map(source => source.text).join('\n\n---\n\n') : sources[0].text;
+                boundedText(text);
+                result = { kind: 'text', sources };
+                if (mode === 'compare') {
+                    if (total > 500000) throw new Error('Comparison is limited to 500,000 characters in total.');
+                    const diff = diffLines(sources[0].text, sources[1].text, { timeout: 1500, maxEditLength: 20000 });
+                    if (!diff) throw new Error('These files are too different for a quick comparison. Try smaller files.');
+                    el('diff-output').replaceChildren();
+                    for (const part of diff) {
+                        const span = document.createElement('span');
+                        span.className = part.added ? 'diff-added' : part.removed ? 'diff-removed' : 'diff-common';
+                        span.textContent = part.value; el('diff-output').append(span);
+                    }
+                    stats(sources.map(source => source.text).join('\n'));
+                } else { el('output-text').value = text; stats(text); }
             }
-            return text;
-        } catch (e) {
-            console.error('PDF Error:', e);
-            throw new Error(`Failed to read PDF: ${file.name}. Ensure it is not password protected.`);
-        }
+            el('result-container').classList.remove('hidden');
+            notify(mode === 'compare' ? 'Green marks additions; red marks removals.' : 'Your result is ready.');
+            el('result-container').scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+            if (mode === 'edit') el('output-text').focus();
+        } catch (error) { invalidate(); notify(`Could not process files: ${error.message}`, true); }
+        finally { busy = false; update(); }
     }
-
-    async function readDocx(file) {
+    function stats(text) {
+        el('word-count').textContent = `${(text.trim() ? text.trim().split(/\s+/).length : 0).toLocaleString()} words`;
+        el('char-count').textContent = `${text.length.toLocaleString()} chars`;
+    }
+    async function download() {
+        if (busy || !result) return;
+        busy = true; update();
         try {
-            const arrayBuffer = await file.arrayBuffer();
-            const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
-            return result.value;
-        } catch (e) {
-            console.error('DOCX Error:', e);
-            return `[Error reading DOCX: ${file.name}]`;
-        }
+            const ext = mode === 'compare' ? '.txt' : el('extension-select').value;
+            const base = safeFilename(el('filename-input').value.trim().replace(/\.(txt|md|pdf|docx|json|xlsx)$/i, ''));
+            const text = mode === 'compare' ? el('diff-output').textContent : el('output-text').value;
+            boundedText(text);
+            let bytes, mime;
+            if (result.kind === 'pdf') { bytes = result.bytes; mime = 'application/pdf'; }
+            else if (ext === '.pdf') { bytes = exportPdf(text, await loadFont()); mime = 'application/pdf'; }
+            else if (ext === '.docx') { bytes = await exportDocx(text); mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'; }
+            else if (ext === '.xlsx') { bytes = await exportSpreadsheet(text, mode === 'edit' ? [] : files); mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'; }
+            else if (ext === '.json') { bytes = exportJson(text, mode === 'merge' ? result.sources : []); mime = 'application/json'; }
+            else { bytes = text; mime = 'text/plain;charset=utf-8'; }
+            await save(new Blob([bytes], { type: mime }), base + ext);
+            notify('Your download is ready.');
+        } catch (error) { notify(`Could not download: ${error.message}`, true); }
+        finally { busy = false; update(); }
     }
-
-    function updateStats(text) {
-        if (!text) {
-            wordCountSpan.textContent = "0 words";
-            charCountSpan.textContent = "0 chars";
-            return;
-        }
-        const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-        const chars = text.length;
-        wordCountSpan.textContent = `${words.toLocaleString()} words`;
-        charCountSpan.textContent = `${chars.toLocaleString()} chars`;
-    }
-
-    copyBtn.addEventListener('click', () => {
-        let textToCopy = (currentMode === 'compare') ? diffOutput.textContent : outputText.value;
-        navigator.clipboard.writeText(textToCopy).then(() => {
-            const originalText = copyBtn.textContent;
-            copyBtn.textContent = 'Copied!';
-            setTimeout(() => copyBtn.textContent = originalText, 2000);
-        });
-    });
-
-    downloadBtn.addEventListener('click', async () => {
-        let filename = filenameInput.value.trim() || 'output';
-        filename = filename.replace(/\.(txt|md|pdf|docx|json|xlsx)$/i, '');
-
-        // For compare mode, we can download the diff text
-        let content = (currentMode === 'compare') ? diffOutput.textContent : outputText.value;
-        const ext = extensionSelect.value;
-
-        if (ext === '.pdf') {
-            await generateAndDownloadPdf(content, filename);
-        } else if (ext === '.docx') {
-            await generateAndDownloadDocx(content, filename);
-        } else {
-            // txt, md, json, xlsx (as text/csv renamed? or just text)
-            // If user selects .xlsx for output, we could try to generate a real xlsx, 
-            // but for now let's save as text file with that extension if that's what they asked
-            // OR if content is CSV (from Convert Excel), maybe we should write it properly?
-            // To keep it simple (Minimalist), we download the text content with the requested extension.
-            downloadTextFile(content, filename, ext);
-        }
-    });
-
-    function downloadTextFile(content, filename, extension) {
-        const blob = new Blob([content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename + extension;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-
-    async function generateAndDownloadPdf(content, filename) {
+    async function copy() {
+        if (!result || busy || result.kind === 'pdf') return;
         try {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            doc.setFont("helvetica");
-            doc.setFontSize(12);
-
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const pageHeight = doc.internal.pageSize.getHeight();
-            const margin = 15;
-            const maxLineWidth = pageWidth - (margin * 2);
-
-            if (!content) {
-                alert("No content to save!");
-                return;
-            }
-
-            const splitText = doc.splitTextToSize(content, maxLineWidth);
-            let y = margin;
-            const lineHeight = 7;
-
-            splitText.forEach(line => {
-                if (y > pageHeight - margin) {
-                    doc.addPage();
-                    y = margin;
-                }
-                doc.text(line, margin, y);
-                y += lineHeight;
-            });
-            doc.save(filename + '.pdf');
-        } catch (error) {
-            console.error("PDF Generation Error:", error);
-            alert("Failed to generate PDF. See console for details.");
-        }
+            if (!clipboard?.writeText) throw new Error('Clipboard unavailable');
+            await clipboard.writeText(mode === 'compare' ? el('diff-output').textContent : el('output-text').value);
+            notify('Copied to your clipboard.');
+        } catch { notify('Could not copy. Select the result text and copy it manually.', true); }
     }
+    for (const button of modeButtons) button.addEventListener('click', () => setMode(button.dataset.mode));
+    el('file-input').addEventListener('change', event => { addFiles(event.target.files); event.target.value = ''; });
+    el('drop-zone').addEventListener('dragover', event => { event.preventDefault(); if (!busy) el('drop-zone').classList.add('drag-over'); });
+    el('drop-zone').addEventListener('dragleave', () => el('drop-zone').classList.remove('drag-over'));
+    el('drop-zone').addEventListener('drop', event => { event.preventDefault(); el('drop-zone').classList.remove('drag-over'); addFiles(event.dataTransfer.files); });
+    el('clear-btn').addEventListener('click', () => { if (busy) return; files = []; invalidate(); el('output-text').value = ''; el('diff-output').replaceChildren(); el('status-message').classList.add('hidden'); update(); });
+    el('action-btn').addEventListener('click', run);
+    el('download-btn').addEventListener('click', download);
+    el('copy-btn').addEventListener('click', copy);
+    el('output-text').addEventListener('input', () => stats(el('output-text').value));
+    el('extension-select').addEventListener('change', () => { invalidate(); notify('Output format changed. Process your files again to prepare the new result.'); update(); });
+    setMode('merge');
+    return { addFiles, run, download, copy, setMode, getState: () => ({ files: [...files], mode, busy, result }) };
+}
 
-    async function generateAndDownloadDocx(content, filename) {
-        try {
-            const { Document, Packer, Paragraph, TextRun } = window.docx;
-            const lines = content.split('\n');
-            const paragraphs = lines.map(line => new Paragraph({
-                children: [new TextRun(line)],
-            }));
-
-            const doc = new Document({
-                sections: [{ children: paragraphs }]
-            });
-
-            const blob = await Packer.toBlob(doc);
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename + '.docx';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } catch (e) {
-            console.error(e);
-            alert("Error generating DOCX");
-        }
-    }
-});
+function saveDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a'); link.href = url; link.download = filename;
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

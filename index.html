@@ -1,110 +1,150 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Merge Documents</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; worker-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+    <meta name="referrer" content="no-referrer">
+    <title>Merge — Your document workspace</title>
+    <meta name="description" content="Merge, compare, convert and edit documents in your browser. No sign-up or file uploads.">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <!-- PDF.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
-    </script>
-    <!-- pdf-lib for True PDF Merging -->
-    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-    <!-- Mammoth.js for DOCX -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
-
-    <!-- jsPDF & html2canvas -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <!-- docx.js -->
-    <script src="https://unpkg.com/docx@7.1.0/build/index.js"></script>
-    <!-- jsdiff -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
-    <!-- SheetJS (xlsx) -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-    <!-- JSZip -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
-
 <body>
-
-    <div class="container">
-        <header>
-            <h1>Merge</h1>
-            <p class="subtitle">Multi-Tool: Merge, Compare, Convert, Edit, Compress</p>
-
-            <div class="mode-switch-container">
-                <button id="mode-merge" class="mode-btn active" data-mode="merge">Merge</button>
-                <button id="mode-compare" class="mode-btn" data-mode="compare">Compare</button>
-                <button id="mode-convert" class="mode-btn" data-mode="convert">Convert</button>
-                <button id="mode-edit" class="mode-btn" data-mode="edit">Edit</button>
-                <button id="mode-compress" class="mode-btn" data-mode="compress">Compress</button>
-            </div>
-        </header>
-
-        <main>
-            <div id="drop-zone" class="drop-zone">
-                <span class="icon">📄</span>
-                <p>Drag & Drop files here</p>
-                <p class="small">Supported: .md, .txt, .pdf, .docx, .json, .xlsx</p>
-                <input type="file" id="file-input" multiple
-                    accept=".md,.txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.json,application/json,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
-            </div>
-
-            <div id="file-list-container" class="hidden">
-                <div class="list-header">
-                    <h3 id="files-list-title">Files to Merge</h3>
-                    <button id="clear-btn" class="text-btn">Clear All</button>
-                </div>
-                <ul id="file-list"></ul>
-            </div>
-
-            <div class="controls hidden" id="controls-container">
-                <div class="filename-input-group" id="merge-options">
-                    <label for="filename-input">Output Filename:</label>
-                    <div class="input-wrapper">
-                        <input type="text" id="filename-input" value="merged_files" placeholder="filename">
-                        <select id="extension-select">
-                            <option value=".md">.md</option>
-                            <option value=".txt">.txt</option>
-                            <option value=".pdf">.pdf</option>
-                            <option value=".docx">.docx</option>
-                            <option value=".json">.json</option>
-                            <option value=".xlsx">.xlsx</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="actions">
-                    <button id="action-btn" class="primary-btn">Merge Files</button>
-                </div>
-            </div>
-
-            <div id="result-container" class="hidden">
-                <div class="result-header">
-                    <div class="stats">
-                        <span id="word-count">0 words</span> • <span id="char-count">0 chars</span>
-                    </div>
-                    <div class="result-actions">
-                        <button id="copy-btn" class="secondary-btn">Copy</button>
-                        <button id="download-btn" class="secondary-btn">Download</button>
-                    </div>
-                </div>
-                <div id="output-area">
-                    <textarea id="output-text" readonly></textarea>
-                    <div id="diff-output" class="hidden diff-view"></div>
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <script src="script.js"></script>
+<div class="container">
+<header class="topbar">
+<a class="brand" href="./">
+<span class="brand-mark">m</span>merge.</a>
+<span class="local-badge">● Files stay on your device</span>
+</header>
+<main>
+<section class="hero">
+<p class="eyebrow">LESS FILE CHAOS. MORE FLOW.</p>
+<h1>Your documents.<br>
+<span>Better together.</span>
+</h1>
+<p class="subtitle">One calm workspace to merge, compare, and transform your files.<br>No sign-up. No uploads. Just get things done.</p>
+</section>
+<section class="workspace" aria-label="Document tools">
+<nav class="mode-switch-container" aria-label="Choose a tool">
+<button disabled id="mode-merge" class="mode-btn active" data-mode="merge" aria-pressed="true">
+<span aria-hidden="true">⊕</span> Merge</button>
+<button disabled id="mode-compare" class="mode-btn " data-mode="compare" aria-pressed="false">
+<span aria-hidden="true">⇄</span> Compare</button>
+<button disabled id="mode-convert" class="mode-btn " data-mode="convert" aria-pressed="false">
+<span aria-hidden="true">↗</span> Convert</button>
+<button disabled id="mode-edit" class="mode-btn " data-mode="edit" aria-pressed="false">
+<span aria-hidden="true">✎</span> Edit</button>
+<button disabled id="mode-compress" class="mode-btn " data-mode="compress" aria-pressed="false">
+<span aria-hidden="true">▤</span> ZIP</button>
+</nav>
+<div class="workspace-body">
+<div class="tool-heading">
+<div>
+<h2 id="tool-title">Make many files one.</h2>
+<p id="tool-description">Add your documents, arrange them, and bring everything together.</p>
+</div>
+<span class="step-label">01 / ADD FILES</span>
+</div>
+<div id="drop-zone" class="drop-zone">
+<div class="upload-art" aria-hidden="true">
+<span class="paper back">≡</span>
+<span class="paper front">↑</span>
+</div>
+<h3>Drop your files here</h3>
+<p class="drop-copy">or <span>browse your device</span>
+</p>
+<div class="format-tags" aria-hidden="true">
+<span>PDF</span>
+<span>DOCX</span>
+<span>TXT</span>
+<span>MD</span>
+<span>JSON</span>
+<span>EXCEL</span>
+</div>
+<input type="file" disabled id="file-input" multiple accept=".md,.txt,.pdf,.docx,.json,.xlsx,.xls" aria-label="Choose documents">
+</div>
+<p class="privacy-note">◇ Processed on your device. Up to 30 files · 20 MB each · 60 MB total.</p>
+<noscript><p>JavaScript is required to process documents locally. Please enable it to use these tools.</p></noscript>
+<div id="status-message" role="status" aria-live="polite" class="hidden">
+</div>
+<div id="file-list-container" class="hidden">
+<div class="list-header">
+<h3 id="files-list-title">Files to Merge</h3>
+<button id="clear-btn" class="text-btn">Clear all</button>
+</div>
+<ul id="file-list">
+</ul>
+</div>
+<div class="controls hidden" id="controls-container">
+<div class="filename-input-group" id="merge-options">
+<label for="filename-input">Save as</label>
+<div class="input-wrapper">
+<input type="text" id="filename-input" value="merged_files" placeholder="filename">
+<select id="extension-select" aria-label="Output format">
+<option value=".md">.md</option>
+<option value=".txt">.txt</option>
+<option value=".pdf">.pdf</option>
+<option value=".docx">.docx</option>
+<option value=".json">.json</option>
+<option value=".xlsx">.xlsx</option>
+</select>
+</div>
+</div>
+<div class="actions">
+<button id="action-btn" class="primary-btn">Merge Files</button>
+</div>
+</div>
+<div id="result-container" class="hidden">
+<div class="result-header">
+<div>
+<h3>Your result</h3>
+<div class="stats">
+<span id="word-count">0 words</span> · <span id="char-count">0 chars</span>
+</div>
+</div>
+<div class="result-actions">
+<button id="copy-btn" class="secondary-btn">Copy text</button>
+<button id="download-btn" class="primary-btn">Download ↓</button>
+</div>
+</div>
+<div id="output-area">
+<textarea id="output-text" maxlength="2000000" readonly aria-label="Document result">
+</textarea>
+<div id="diff-output" class="hidden diff-view" aria-label="Document differences">
+</div>
+</div>
+</div>
+</div>
+<div class="workspace-footer">
+<span>● Ready when you are</span>
+<span>6 formats. One workspace.</span>
+</div>
+</section>
+<section class="benefits" aria-label="How it works">
+<article>
+<span>01</span>
+<h3>Bring your files</h3>
+<p>Documents, spreadsheets, or plain text. Start with what you have.</p>
+</article>
+<article>
+<span>02</span>
+<h3>Make them work</h3>
+<p>Choose your tool and arrange your files. A few clicks is all it takes.</p>
+</article>
+<article>
+<span>03</span>
+<h3>Take it with you</h3>
+<p>Download your result and get back to what matters.</p>
+</article>
+</section>
+<p class="format-note">PDF merging preserves pages. Text conversions do not preserve document styling. Excel export keeps sheet values, without formulas or macros. ZIP archives keep your original files. Scanned PDFs need OCR, which is not included.</p>
+</main>
+<footer class="page-footer">
+<span>merge. A little order for your documents.</span>
+<span>Simple by design. Private by default.</span>
+</footer>
+</div>
+<script type="module" src="app.js"></script>
 </body>
-
 </html>
