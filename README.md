@@ -46,4 +46,14 @@ Review dependency advisories regularly. A clean `npm audit` means no reported vu
 
 ## Deployment
 
+### GitHub Pages
+
+The repository includes `.github/workflows/pages.yml`. In **Settings → Pages → Build and deployment → Source**, select **GitHub Actions**. Pushing to `main` then installs locked dependencies, builds, tests, and publishes the contents of `dist/` automatically.
+
+Do not select **Deploy from a branch → / (root)**: the repository root contains source files, and `app.js` and the PDF worker are produced only by the build. Publishing source directly gives a page that looks correct but cannot process documents.
+
+Assets use relative URLs, so the same build works at `https://joaopedroparreira.github.io/Merge/` and at the private test site's root. Theme preferences are kept locally and separately for each origin. GitHub Pages uses the CSP and referrer metadata in the HTML; it does not apply the additional `_headers` configuration used by the test host.
+
+### Private test site
+
 `.openai/hosting.json` identifies the private Sites deployment. The production output is `dist/`; document processing remains local to each visitor. The bundled Noto Sans font supports Portuguese PDF text and includes its license under `public/assets/`.

@@ -14,13 +14,17 @@ export const securityHeaders = {
 };
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.json': 'application/json', '.txt': 'text/plain; charset=utf-8' };
 
-export function createSiteServer(directory = path.resolve('dist')) {
+export function createSiteServer(directory = path.resolve('dist'), { basePath = '' } = {}) {
     return createServer(async (request, response) => {
         for (const [name, value] of Object.entries(securityHeaders)) response.setHeader(name, value);
         if (!['GET', 'HEAD'].includes(request.method)) { response.writeHead(405, { Allow: 'GET, HEAD' }); response.end(); return; }
         try {
             const url = new URL(request.url, 'http://localhost');
-            const pathname = decodeURIComponent(url.pathname);
+            let pathname = decodeURIComponent(url.pathname);
+            if (basePath) {
+                if (pathname !== basePath && !pathname.startsWith(basePath + '/')) { response.writeHead(404); response.end(); return; }
+                pathname = pathname.slice(basePath.length) || '/';
+            }
             const target = path.resolve(directory, '.' + (pathname === '/' ? '/index.html' : pathname));
             const relative = path.relative(directory, target);
             if (relative.startsWith('..') || path.isAbsolute(relative) || relative.split(/[\\/]/).some(part => part.startsWith('.') || part === '_headers')) {

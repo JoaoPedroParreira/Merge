@@ -8,6 +8,7 @@ await copyFile('node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs', 'dist/
 await copyFile('style.css', 'dist/style.css');
 await copyFile('theme.js', 'dist/theme.js');
 await copyFile('index.html', 'dist/index.html');
+await writeFile('dist/.nojekyll', '');
 await copyFile('public/_headers', 'dist/_headers');
 await copyFile('public/favicon.svg', 'dist/favicon.svg');
 for (const name of await readdir('public/assets')) await copyFile(path.join('public/assets', name), path.join('dist/assets', name));
